@@ -1,27 +1,36 @@
-# Use full Node image (faster build than alpine)
-FROM node:18 AS builder
+# ---- Stage 1: Build React App ----
+FROM node:18-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy only package files first (for Docker cache)
+# Copy package files first (for layer caching)
 COPY package*.json ./
 
-# Upgrade npm lockfile automatically
-RUN npm install -g npm@latest \
-    && npm install --package-lock-only \
-    && npm ci --no-audit --prefer-offline
+# Clean npm cache & reinstall fresh dependencies
+RUN npm cache clean --force \
+    && rm -rf node_modules package-lock.json \
+    && npm install --legacy-peer-deps
 
-# Copy the rest of the app
+# Copy all source files
 COPY . .
 
-# Build the production version
+# Build React app
 RUN npm run build
 
-# Use lightweight runtime image
-FROM nginx:stable-alpine
-COPY --from=builder /app/build /usr/share/nginx/html
+# ---- Stage 2: Run the production app ----
+FROM node:18-alpine
 
-# Expose the port
-EXPOSE 8083
-CMD ["nginx", "-g", "daemon off;"]
+WORKDIR /app
+
+# Copy only the built output from builder
+COPY --from=builder /app/build ./build
+
+# Install a lightweight web server to serve static files
+RUN npm install -g serve
+
+# Expose the app port
+EXPOSE 3000
+
+# Start the React app
+CMD ["serve", "-s", "build", "-l", "3000"]
