@@ -1,13 +1,16 @@
 # ---- Stage 1: Build React App ----
 FROM node:18-alpine AS builder
 
+# Install git because some npm packages depend on it
+RUN apk add --no-cache git
+
 # Set working directory
 WORKDIR /app
 
-# Copy package files first (for layer caching)
+# Copy package files first (for caching)
 COPY package*.json ./
 
-# Clean npm cache & reinstall fresh dependencies
+# Clean npm cache & reinstall dependencies
 RUN npm cache clean --force \
     && rm -rf node_modules package-lock.json \
     && npm install --legacy-peer-deps
@@ -20,7 +23,6 @@ RUN npm run build
 
 # ---- Stage 2: Run the production app ----
 FROM node:18-alpine
-
 WORKDIR /app
 
 # Copy only the built output from builder
