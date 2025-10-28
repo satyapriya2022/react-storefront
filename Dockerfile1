@@ -1,35 +1,39 @@
 # ---- Stage 1: Build React App ----
 FROM node:20-alpine AS builder
 
+# Install Git (required for npm dependencies pulled from GitHub)
+RUN apk add --no-cache git
+
 # Set working directory
 WORKDIR /app
 
 # Copy package files first (for layer caching)
 COPY package*.json ./
 
-# Clean npm cache & install dependencies freshly
+# Clean npm cache & reinstall fresh dependencies
 RUN npm cache clean --force \
     && rm -rf node_modules package-lock.json \
-    && npm install --force --no-audit --no-fund
+    && npm install --force --no-audit --no-fund --legacy-peer-deps
 
-# Copy source files
+# Copy all source files
 COPY . .
 
 # Build React app
 RUN npm run build
 
-# ---- Stage 2: Run production build ----
+# ---- Stage 2: Run the production app ----
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy build output from builder
+# Copy only the built output from builder
 COPY --from=builder /app/build ./build
 
-# Install lightweight server
+# Install lightweight web server
 RUN npm install -g serve
 
+# Expose app port
 EXPOSE 3000
 
-# Start the React app
+# Start the app
 CMD ["serve", "-s", "build", "-l", "3000"]
